@@ -5,6 +5,10 @@ import model.Line;
 public abstract class LineRasterizer {
     protected final Raster raster;
 
+    public Raster getRaster() {
+        return raster;
+    }
+
     public LineRasterizer(Raster raster) {
         this.raster = raster;
     }
@@ -18,5 +22,9 @@ public abstract class LineRasterizer {
 
     public void rasterize(Line line, int color) {
         rasterize(line.getX1(), line.getY1(), line.getX2(), line.getY2(), color);
+    }
+
+    public void rasterize(Line line) {
+        rasterize(line.getX1(), line.getY1(), line.getX2(), line.getY2());
     }
 }
