@@ -10,9 +10,16 @@ import java.util.List;
 
 public abstract class Solid {
     protected List<Point3D> vb;
+
+    protected String name;
+
+    public String getName() {
+        return name;
+    }
+
     protected List<Integer> ib;
     private Mat4 model;
-    private List<Integer> colors;
+    protected List<Integer> colors;
 
     public Solid(){
         vb = new ArrayList<>();

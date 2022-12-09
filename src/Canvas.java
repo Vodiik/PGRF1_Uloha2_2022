@@ -5,8 +5,6 @@ import model.Line;
 import model.Point;
 import model.Polygon;
 import raster.*;
-import raster.DottedLineRasterizer;
-
 
 import javax.swing.*;
 import java.awt.*;

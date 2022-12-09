@@ -19,10 +19,6 @@ public class WireRenderer implements Renderer {
         this.lineRasterizer = lineRasterizer;
     }
 
-    public void setRasterizer(LineRasterizer lineRasterizer) {
-        this.lineRasterizer = lineRasterizer;
-    }
-
     @Override
     public void render(Scene scene) {
         for (Solid solid : scene.getSolids()
@@ -41,23 +37,21 @@ public class WireRenderer implements Renderer {
             Point3D b = solid.getVb().get(indexB);
             a = a.mul(trans);
             b = b.mul(trans);
-            //int color = solid.getColors().get(i / 2 % solid.getColors().size());
-            render(a, b, 0x00ff00);
+            int color = solid.getColors().get(i / 2 % solid.getColors().size());
+            render(a, b, color);
         }
     }
 
     private void render(Point3D a, Point3D b, int color) {
-        //dehomog
-        Vec3D va = new Vec3D();
-        if (a.dehomog().isPresent()) {
-            va = a.dehomog().get();
+
+        // dehomog
+        if (!a.dehomog().isPresent() || !b.dehomog().isPresent()) {
+            return;// neregulerni trojuhelnik(w=0)
+
         }
 
-        Vec3D vb = new Vec3D();
-        if (b.dehomog().isPresent()) {
-            vb = b.dehomog().get();
-        }
-
+        Vec3D va = a.dehomog().get();
+        Vec3D vb = b.dehomog().get();
         //clip
         if (Math.min(va.getX(), vb.getX()) < -1.0D || Math.max(va.getX(), vb.getX()) > 1.0D ||
                 Math.min(va.getY(), vb.getY()) < -1.0D || Math.max(va.getY(), vb.getY()) > 1.0D ||

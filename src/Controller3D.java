@@ -3,23 +3,31 @@ import raster.LineRasterizerGraphics;
 import raster.Raster;
 import raster.RasterBufferedImage;
 import render.WireRenderer;
-import solids.Cube;
-import solids.Pyramid;
-import solids.Scene;
-import solids.Solid;
+import solids.*;
 import transforms.*;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.*;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 public class Controller3D {
-    private final JFrame frame;
+    private final Thread animation;
+    private boolean animationActive = false;
     private final JPanel panel;
     private final Raster raster;
-    private final LineRasterizer lineRasterizer;
     private final WireRenderer wireRenderer;
-
+    private List<String> solidList;
+    private int activeSolid = 0;
+    private boolean orthoProjection = true;
+    private boolean axisActive = true;
+    private int curveIndex = 0;
+    private final List<Mat4> curveTypes = new ArrayList<>(Arrays.asList(Cubic.BEZIER, Cubic.FERGUSON, Cubic.COONS));
     private Scene scene;
 
     private Camera camera = new Camera()
@@ -33,17 +41,31 @@ public class Controller3D {
 
     public Controller3D(int width, int height) {
 
-        frame = new JFrame();
+        JFrame frame = new JFrame();
 
         frame.setLayout(new BorderLayout());
-        frame.setTitle("PGRF1 - Uloha 3");
+        frame.setTitle("PGRF1 - Uloha 3: Martin Voda");
         frame.setResizable(false);
         frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
 
         raster = new RasterBufferedImage(width, height);
-        lineRasterizer = new LineRasterizerGraphics(raster);
+        LineRasterizer lineRasterizer = new LineRasterizerGraphics(raster);
         wireRenderer = new WireRenderer(lineRasterizer);
 
+        animation = new Thread(() -> {
+            while (true) {
+                if (animationActive) {
+                    solidRotate(new Mat4RotXYZ(0.01, 0.01, 0.01));
+                    display();
+                }
+                try {
+                    Thread.sleep(1000 / 60);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+
+            }
+        });
         panel = new JPanel() {
             @Override
             protected void paintComponent(Graphics g) {
@@ -62,27 +84,83 @@ public class Controller3D {
             public void keyPressed(KeyEvent e) {
                 if (e.getKeyCode() == KeyEvent.VK_W) {
                     camera = camera.forward(cameraSpeed);
-                    System.out.println("forward");
+                    scene.getSolids().forEach(solid -> {
+                        solid.setModel(solid.getModel().mul(new Mat4Scale(1.0 + cameraSpeed)));
+                    });
                 }
                 if (e.getKeyCode() == KeyEvent.VK_A) {
                     camera = camera.left(cameraSpeed);
-                    System.out.println("left");
                 }
                 if (e.getKeyCode() == KeyEvent.VK_S) {
                     camera = camera.backward(cameraSpeed);
-                    System.out.println("backward");
+                    scene.getSolids().forEach(solid -> {
+                        solid.setModel(solid.getModel().mul(new Mat4Scale(1.0 - cameraSpeed)));
+                    });
                 }
                 if (e.getKeyCode() == KeyEvent.VK_D) {
                     camera = camera.right(cameraSpeed);
-                    System.out.println("right");
                 }
                 if (e.getKeyCode() == KeyEvent.VK_SPACE) {
                     camera = camera.up(cameraSpeed);
-                    System.out.println("up");
                 }
                 if (e.getKeyCode() == KeyEvent.VK_SHIFT) {
                     camera = camera.down(cameraSpeed);
-                    System.out.println("down");
+                }
+                if (e.getKeyCode() == KeyEvent.VK_P) {
+                    orthoProjection = !orthoProjection;
+                }
+                if (e.getKeyCode() == KeyEvent.VK_O) {
+                    axisActive = !axisActive;
+                }
+                if (e.getKeyCode() == KeyEvent.VK_V) {
+                    curveIndex = (curveIndex + 1) % curveTypes.size();
+                    scene.getSolids().forEach(solid -> {
+                        if (solid.getName().equals("Curve")) {
+                            ((Curve)solid).updateType(curveTypes.get(curveIndex));
+                        }
+                    });
+                }
+                if (e.getKeyCode() == KeyEvent.VK_UP) {
+                    activeSolid = (activeSolid + 1) % solidList.size();
+                }
+                if (e.getKeyCode() == KeyEvent.VK_DOWN) {
+                    activeSolid = (activeSolid - 1) % solidList.size();
+                    if (activeSolid < 0) {
+                        activeSolid = solidList.size() - 1;
+                    }
+                }
+                if (e.getKeyCode() == KeyEvent.VK_1) {
+                    solidTransl(-0.5, 0, 0);
+                }
+                if (e.getKeyCode() == KeyEvent.VK_2) {
+                    solidTransl(0.5, 0, 0);
+                }
+                if (e.getKeyCode() == KeyEvent.VK_3) {
+                    solidTransl(0, -0.5, 0);
+                }
+                if (e.getKeyCode() == KeyEvent.VK_4) {
+                    solidTransl(0, 0.5, 0);
+                }
+                if (e.getKeyCode() == KeyEvent.VK_5) {
+                    solidTransl(0, 0, -0.5);
+                }
+                if (e.getKeyCode() == KeyEvent.VK_6) {
+                    solidTransl(0, 0, 0.5);
+                }
+                if (e.getKeyCode() == KeyEvent.VK_X) {
+                    solidRotate(new Mat4RotX(0.01));
+                }
+                if (e.getKeyCode() == KeyEvent.VK_Y) {
+                    solidRotate(new Mat4RotY(0.01));
+                }
+                if (e.getKeyCode() == KeyEvent.VK_Z) {
+                    solidRotate(new Mat4RotZ(0.01));
+                }
+                if (e.getKeyCode() == KeyEvent.VK_R) {
+                    solidRotate(new Mat4RotXYZ(0.01, 0.01, 0.01));
+                }
+                if (e.getKeyCode() == KeyEvent.VK_0) {
+                    animationActive = !animationActive;
                 }
 
                 display();
@@ -97,23 +175,16 @@ public class Controller3D {
             }
         });
 
-        panel.addMouseWheelListener(new MouseWheelListener() {
-            @Override
-            public void mouseWheelMoved(MouseWheelEvent e) {
-                if (e.getWheelRotation() == 1) {
-                    //ZOOM OUT
-                    scene.getSolids().forEach(solid -> {
-                        solid.setModel(solid.getModel().mul(new Mat4Scale(0.9)));
-                    });
-                } else {
-                    //ZOOM IN
-                    scene.getSolids().forEach(solid -> {
-                        solid.setModel(solid.getModel().mul(new Mat4Scale(1.1)));
-                    });
-                }
-
-                display();
+        panel.addMouseWheelListener(e -> {
+            if (e.getWheelRotation() == 1) {
+                //ZOOM OUT
+                solidZOOM(0.9);
+            } else {
+                //ZOOM IN
+                solidZOOM(1.1);
             }
+
+            display();
         });
 
         panel.addMouseMotionListener(new MouseAdapter() {
@@ -124,17 +195,11 @@ public class Controller3D {
                 double azimuth = dx / 1000.;
                 double zenith = dy / 1000.;
 
-                //camera.withAzimuth(camera.getAzimuth() + azimuth);
-                //camera.withZenith(camera.getZenith() + zenith);
-
                 camera = camera.addAzimuth(azimuth);
                 camera = camera.addZenith(zenith);
 
                 ox = e.getX();
                 oy = e.getY();
-
-                System.out.println(dy);
-                System.out.println(dx);
 
                 display();
             }
@@ -144,35 +209,96 @@ public class Controller3D {
         panel.requestFocusInWindow();
     }
 
-    public void clear() {
-        raster.clear();
-        panel.repaint();
-    }
-
     private void display() {
         raster.clear();
 
         wireRenderer.setView(camera.getViewMatrix());
-        wireRenderer.setProjection(new Mat4OrthoRH(6, 4, 0.1, 30));
-        //wireRenderer.setProjection(new Mat4PerspRH(1.5, raster.getWidth() / raster.getHeight(), 0.1,30));
-
+        if (orthoProjection) {
+            wireRenderer.setProjection(new Mat4OrthoRH(6, 4, 0.1, 30));
+        } else {
+            wireRenderer.setProjection(new Mat4PerspRH(1.5, raster.getWidth() / raster.getHeight(), 0.1, 30));
+        }
         wireRenderer.render(scene);
+        if (axisActive) {
+            wireRenderer.render(new Axis());
+        }
+
+        Graphics graphics = ((RasterBufferedImage) raster).getImg().getGraphics();
+        graphics.drawString("Active Solid: " + solidList.get(activeSolid), raster.getWidth() / 2, 15);
 
         panel.repaint();
     }
 
     public void start() {
-        Solid cube1 = new Cube();
+        Solid cube = new Cube();
+        cube.setModel(cube.getModel().mul(new Mat4Transl(0, 0, 0)));
         Solid pyramid = new Pyramid();
-        Mat4 scale = new Mat4Scale(0.5);
-        Mat4 transl = new Mat4Transl(0.3, 0.3, 0);
-        pyramid.setModel(scale.mul(transl));
-        cube1.setModel(scale);
-        scene = new Scene();
-        scene.addSolid(cube1);
-        scene.addSolid(pyramid);
+        pyramid.setModel(pyramid.getModel().mul(new Mat4Transl(0, 3, 0)));
+        Solid roof = new Roof();
+        roof.setModel(roof.getModel().mul(new Mat4Transl(0, 3, 3)));
+        Solid tetrahedron = new Tetrahedron();
+        tetrahedron.setModel(tetrahedron.getModel().mul(new Mat4Transl(0, -3, 0)));
 
+
+        scene = new Scene();
+        scene.addSolid(cube);
+        scene.addSolid(pyramid);
+        scene.addSolid(roof);
+        scene.addSolid(tetrahedron);
+        scene.addSolid(new Curve(curveTypes.get(curveIndex)));
+
+
+        solidList = new ArrayList<>();
+        solidList.add("All");
+        scene.getSolids().forEach(solid -> {
+            solidList.add(solid.getName());
+        });
+        solidZOOM(0.5);
         display();
+
+        animation.start();
+    }
+
+    private void solidTransl(double x, double y, double z) {
+        if (activeSolid == 0) {
+            scene.getSolids().forEach(solid -> {
+                Mat4 temp = solid.getModel();
+                temp = new Mat4Transl(x, y, z).mul(temp);
+                solid.setModel(temp);
+            });
+        } else {
+            Mat4 temp = scene.getSolids().get(activeSolid - 1).getModel();
+            temp = new Mat4Transl(x, y, z).mul(temp);
+            scene.getSolids().get(activeSolid - 1).setModel(temp);
+        }
+    }
+
+    private void solidRotate(Mat4 rotate) {
+        if (activeSolid == 0) {
+            scene.getSolids().forEach(solid -> {
+                Mat4 temp = solid.getModel();
+                temp = rotate.mul(temp);
+                solid.setModel(temp);
+            });
+        } else {
+            Mat4 temp = scene.getSolids().get(activeSolid - 1).getModel();
+            temp = rotate.mul(temp);
+            scene.getSolids().get(activeSolid - 1).setModel(temp);
+        }
+    }
+
+    private void solidZOOM(double alpha) {
+        if (activeSolid == 0) {
+            scene.getSolids().forEach(solid -> {
+                Mat4 temp = solid.getModel();
+                temp = temp.mul(new Mat4Scale(alpha));
+                solid.setModel(temp);
+            });
+        } else {
+            Mat4 temp = scene.getSolids().get(activeSolid - 1).getModel();
+            temp = temp.mul(new Mat4Scale(alpha));
+            scene.getSolids().get(activeSolid - 1).setModel(temp);
+        }
     }
 }
 
